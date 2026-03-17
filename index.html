@@ -1,87 +1,117 @@
-import tkinter as tk
-from tkinter import messagebox
-import random
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>神経衰弱 - 4人対戦</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f0f0f0; }
+        #info { font-size: 20px; margin: 10px; }
+        #scores { font-size: 16px; margin-bottom: 10px; color: #333; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(13, 1fr);
+            gap: 5px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .card {
+            aspect-ratio: 2/3;
+            background-color: #2e7d32;
+            color: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 4px;
+            user-select: none;
+        }
+        .card.flipped { background-color: white; color: black; cursor: default; }
+        .card.matched { visibility: hidden; }
+        @media (max-width: 600px) { .grid { grid-template-columns: repeat(7, 1fr); } }
+    </style>
+</head>
+<body>
 
-class MemoryGame:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("神経衰弱 - 52枚対戦モード")
-        
-        # ゲーム設定
-        self.num_players = 4
-        self.scores = [0] * self.num_players
-        self.current_player = 0
-        
-        # カードデータ作成 (13ランク × 4スート = 52枚)
-        self.cards = [f"{rank}" for rank in ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]] * 4
-        random.shuffle(self.cards)
-        
-        self.buttons = []
-        self.first_card_idx = None
-        self.flipped_indices = []
-        self.lock_board = False
+    <h2>神経衰弱 (52枚対戦モード)</h2>
+    <div id="info">プレイヤー 1 の番です</div>
+    <div id="scores">P1: 0 | P2: 0 | P3: 0 | P4: 0</div>
+    <div class="grid" id="gameBoard"></div>
 
-        # UI構築
-        self.info_label = tk.Label(root, text=f"プレイヤー 1 の番です", font=("Helvetica", 14))
-        self.info_label.grid(row=0, column=0, columnspan=13)
-        
-        self.score_label = tk.Label(root, text=self.get_score_text(), font=("Helvetica", 12))
-        self.score_label.grid(row=1, column=0, columnspan=13)
+    <script>
+        const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+        let cards = [...ranks, ...ranks, ...ranks, ...ranks];
+        let numPlayers = 4;
+        let scores = [0, 0, 0, 0];
+        let currentPlayer = 0;
+        let flippedCards = [];
+        let lockBoard = false;
 
-        # カードを 4行 × 13列 で配置
-        for i in range(52):
-            btn = tk.Button(root, text="?", width=6, height=3, 
-                            command=lambda idx=i: self.on_card_click(idx))
-            btn.grid(row=(i // 13) + 2, column=i % 13)
-            self.buttons.append(btn)
+        // シャッフル
+        cards.sort(() => Math.random() - 0.5);
 
-    def get_score_text(self):
-        return " | ". join([f"P{i+1}: {self.scores[i]}点" for i in range(self.num_players)])
+        const board = document.getElementById("gameBoard");
+        const info = document.getElementById("info");
+        const scoreDisplay = document.getElementById("scores");
 
-    def on_card_click(self, idx):
-        # カードが既に表、またはロック中の場合は何もしない
-        if self.lock_board or idx in self.flipped_indices or idx == self.first_card_idx:
-            return
+        function createBoard() {
+            cards.forEach((rank, index) => {
+                const card = document.createElement("div");
+                card.classList.add("card");
+                card.dataset.rank = rank;
+                card.dataset.index = index;
+                card.innerText = rank;
+                card.addEventListener("click", flipCard);
+                board.appendChild(card);
+            });
+        }
 
-        # カードをめくる
-        self.buttons[idx].config(text=self.cards[idx], bg="white")
+        function flipCard() {
+            if (lockBoard || this.classList.contains("flipped")) return;
 
-        if self.first_card_idx is None:
-            # 1枚目
-            self.first_card_idx = idx
-        else:
-            # 2枚目
-            self.lock_board = True
-            self.root.after(1000, lambda: self.check_match(idx))
+            this.classList.add("flipped");
+            flippedCards.push(this);
 
-    def check_match(self, second_idx):
-        first_val = self.cards[self.first_card_idx]
-        second_val = self.cards[second_idx]
+            if (flippedCards.length === 2) {
+                lockBoard = true;
+                checkMatch();
+            }
+        }
 
-        if first_val == second_val:
-            # ペア成立
-            self.scores[self.current_player] += 1
-            self.flipped_indices.extend([self.first_card_idx, second_idx])
-            self.buttons[self.first_card_idx].config(state="disabled", bg="gray")
-            self.buttons[second_idx].config(state="disabled", bg="gray")
+        function checkMatch() {
+            const [card1, card2] = flippedCards;
+            const isMatch = card1.dataset.rank === card2.dataset.rank;
+
+            if (isMatch) {
+                scores[currentPlayer]++;
+                setTimeout(() => {
+                    card1.classList.add("matched");
+                    card2.classList.add("matched");
+                    resetTurn(true);
+                }, 500);
+            } else {
+                setTimeout(() => {
+                    card1.classList.remove("flipped");
+                    card2.classList.remove("flipped");
+                    currentPlayer = (currentPlayer + 1) % numPlayers;
+                    resetTurn(false);
+                }, 1000);
+            }
+        }
+
+        function resetTurn(isMatch) {
+            flippedCards = [];
+            lockBoard = false;
+            info.innerText = `プレイヤー ${currentPlayer + 1} の番です`;
+            scoreDisplay.innerText = scores.map((s, i) => `P${i+1}: ${s}`).join(" | ");
             
-            if len(self.flipped_indices) == 52:
-                winner = self.scores.index(max(self.scores)) + 1
-                messagebox.showinfo("ゲーム終了", f"プレイヤー {winner} の勝利です！\n{self.get_score_text()}")
-        else:
-            # 不一致なら裏に戻す
-            self.buttons[self.first_card_idx].config(text="?", bg="SystemButtonFace")
-            self.buttons[second_idx].config(text="?", bg="SystemButtonFace")
-            # 次のプレイヤーへ
-            self.current_player = (self.current_player + 1) % self.num_players
+            if (document.querySelectorAll(".card:not(.matched)").length === 0) {
+                alert("ゲーム終了！スコア: " + scoreDisplay.innerText);
+            }
+        }
 
-        # 状態リセット
-        self.first_card_idx = None
-        self.lock_board = False
-        self.info_label.config(text=f"プレイヤー {self.current_player + 1} の番です")
-        self.score_label.config(text=self.get_score_text())
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    game = MemoryGame(root)
-    root.mainloop()
+        createBoard();
+    </script>
+</body>
+</html>
