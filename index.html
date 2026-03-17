@@ -1,0 +1,87 @@
+import tkinter as tk
+from tkinter import messagebox
+import random
+
+class MemoryGame:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("神経衰弱 - 52枚対戦モード")
+        
+        # ゲーム設定
+        self.num_players = 4
+        self.scores = [0] * self.num_players
+        self.current_player = 0
+        
+        # カードデータ作成 (13ランク × 4スート = 52枚)
+        self.cards = [f"{rank}" for rank in ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]] * 4
+        random.shuffle(self.cards)
+        
+        self.buttons = []
+        self.first_card_idx = None
+        self.flipped_indices = []
+        self.lock_board = False
+
+        # UI構築
+        self.info_label = tk.Label(root, text=f"プレイヤー 1 の番です", font=("Helvetica", 14))
+        self.info_label.grid(row=0, column=0, columnspan=13)
+        
+        self.score_label = tk.Label(root, text=self.get_score_text(), font=("Helvetica", 12))
+        self.score_label.grid(row=1, column=0, columnspan=13)
+
+        # カードを 4行 × 13列 で配置
+        for i in range(52):
+            btn = tk.Button(root, text="?", width=6, height=3, 
+                            command=lambda idx=i: self.on_card_click(idx))
+            btn.grid(row=(i // 13) + 2, column=i % 13)
+            self.buttons.append(btn)
+
+    def get_score_text(self):
+        return " | ". join([f"P{i+1}: {self.scores[i]}点" for i in range(self.num_players)])
+
+    def on_card_click(self, idx):
+        # カードが既に表、またはロック中の場合は何もしない
+        if self.lock_board or idx in self.flipped_indices or idx == self.first_card_idx:
+            return
+
+        # カードをめくる
+        self.buttons[idx].config(text=self.cards[idx], bg="white")
+
+        if self.first_card_idx is None:
+            # 1枚目
+            self.first_card_idx = idx
+        else:
+            # 2枚目
+            self.lock_board = True
+            self.root.after(1000, lambda: self.check_match(idx))
+
+    def check_match(self, second_idx):
+        first_val = self.cards[self.first_card_idx]
+        second_val = self.cards[second_idx]
+
+        if first_val == second_val:
+            # ペア成立
+            self.scores[self.current_player] += 1
+            self.flipped_indices.extend([self.first_card_idx, second_idx])
+            self.buttons[self.first_card_idx].config(state="disabled", bg="gray")
+            self.buttons[second_idx].config(state="disabled", bg="gray")
+            
+            if len(self.flipped_indices) == 52:
+                winner = self.scores.index(max(self.scores)) + 1
+                messagebox.showinfo("ゲーム終了", f"プレイヤー {winner} の勝利です！\n{self.get_score_text()}")
+        else:
+            # 不一致なら裏に戻す
+            self.buttons[self.first_card_idx].config(text="?", bg="SystemButtonFace")
+            self.buttons[second_idx].config(text="?", bg="SystemButtonFace")
+            # 次のプレイヤーへ
+            self.current_player = (self.current_player + 1) % self.num_players
+
+        # 状態リセット
+        self.first_card_idx = None
+        self.lock_board = False
+        self.info_label.config(text=f"プレイヤー {self.current_player + 1} の番です")
+        self.score_label.config(text=self.get_score_text())
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    game = MemoryGame(root)
+    root.mainloop()
