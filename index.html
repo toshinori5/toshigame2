@@ -2,85 +2,144 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>神経衰弱 - 4人対戦</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>トランプ神経衰弱 - 4人対戦</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background-color: #f0f0f0; }
-        #info { font-size: 20px; margin: 10px; }
-        #scores { font-size: 16px; margin-bottom: 10px; color: #333; }
+        :root {
+            --card-back: #2e7d32;
+            --card-front: #ffffff;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            text-align: center;
+            background-color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+        h2 { color: #2c3e50; }
+        #info {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px;
+            padding: 10px;
+            background: white;
+            display: inline-block;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        #scores {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        .player-score {
+            padding: 10px;
+            background: #fff;
+            border-radius: 5px;
+            min-width: 80px;
+        }
+        .current-player {
+            outline: 3px solid #ff9800;
+            background: #fff9c4;
+        }
         .grid {
             display: grid;
             grid-template-columns: repeat(13, 1fr);
-            gap: 5px;
-            max-width: 900px;
+            gap: 8px;
+            max-width: 1000px;
             margin: 0 auto;
         }
         .card {
             aspect-ratio: 2/3;
-            background-color: #2e7d32;
-            color: transparent;
+            background-color: var(--card-back);
+            border: 1px solid #1b5e20;
+            border-radius: 5px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px;
+            font-size: 1.5vw;
             font-weight: bold;
             cursor: pointer;
-            border-radius: 4px;
+            transition: transform 0.2s;
             user-select: none;
+            color: transparent;
         }
-        .card.flipped { background-color: white; color: black; cursor: default; }
+        .card:hover { transform: scale(1.05); }
+        .card.flipped {
+            background-color: var(--card-front);
+            color: inherit;
+            transform: rotateY(180deg);
+            cursor: default;
+        }
         .card.matched { visibility: hidden; }
-        @media (max-width: 600px) { .grid { grid-template-columns: repeat(7, 1fr); } }
+        /* 赤いスートの色設定 */
+        .red { color: #e53935; }
+        .black { color: #212121; }
+
+        @media (max-width: 800px) {
+            .grid { grid-template-columns: repeat(7, 1fr); }
+            .card { font-size: 18px; }
+        }
     </style>
 </head>
 <body>
 
-    <h2>神経衰弱 (52枚対戦モード)</h2>
+    <h2>トランプ神経衰弱</h2>
     <div id="info">プレイヤー 1 の番です</div>
-    <div id="scores">P1: 0 | P2: 0 | P3: 0 | P4: 0</div>
+    <div id="scores">
+        <div id="p0" class="player-score current-player">P1: 0</div>
+        <div id="p1" class="player-score">P2: 0</div>
+        <div id="p2" class="player-score">P3: 0</div>
+        <div id="p3" class="player-score">P4: 0</div>
+    </div>
     <div class="grid" id="gameBoard"></div>
 
     <script>
         const ranks = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
-const suits = ["♥", "♠", "♣", "♦"]; // ハート、スペード、クローバー、ダイヤ
+        const suits = [
+            { symbol: "♥", color: "red" },
+            { symbol: "♦", color: "red" },
+            { symbol: "♠", color: "black" },
+            { symbol: "♣", color: "black" }
+        ];
 
-let cards = [];
-// 数字ごとにループ
-for (let rank of ranks) {
-    // スートごとにループして、すべての組み合わせを作成
-    for (let suit of suits) {
-        cards.push(rank + suit); // "A♥", "A♠", "A♣", "A♦", "2♥", "2♠", ...のように追加
-    }
-}
-        let numPlayers = 4;
+        let cardsData = [];
+        suits.forEach(s => {
+            ranks.forEach(r => {
+                cardsData.push({ rank: r, suit: s.symbol, color: s.color });
+            });
+        });
+
+        // シャッフル
+        cardsData.sort(() => Math.random() - 0.5);
+
         let scores = [0, 0, 0, 0];
         let currentPlayer = 0;
         let flippedCards = [];
         let lockBoard = false;
 
-        // シャッフル
-        cards.sort(() => Math.random() - 0.5);
-
         const board = document.getElementById("gameBoard");
         const info = document.getElementById("info");
-        const scoreDisplay = document.getElementById("scores");
 
         function createBoard() {
-            cards.forEach((rank, index) => {
+            cardsData.forEach((data, index) => {
                 const card = document.createElement("div");
                 card.classList.add("card");
-                card.dataset.rank = rank;
-                card.dataset.index = index;
-                card.innerText = rank;
-                card.addEventListener("click", flipCard);
+                card.dataset.rank = data.rank;
+                card.innerHTML = `${data.rank}<br>${data.suit}`;
+                card.classList.add(data.color);
+                card.addEventListener("click", () => flipCard(card));
                 board.appendChild(card);
             });
         }
 
-        function flipCard() {
-            if (lockBoard || this.classList.contains("flipped")) return;
+        function flipCard(card) {
+            if (lockBoard || card.classList.contains("flipped") || card.classList.contains("matched")) return;
 
-            this.classList.add("flipped");
-            flippedCards.push(this);
+            card.classList.add("flipped");
+            flippedCards.push(card);
 
             if (flippedCards.length === 2) {
                 lockBoard = true;
@@ -97,26 +156,40 @@ for (let rank of ranks) {
                 setTimeout(() => {
                     card1.classList.add("matched");
                     card2.classList.add("matched");
-                    resetTurn(true);
-                }, 500);
+                    updateUI();
+                    checkGameEnd();
+                    lockBoard = false;
+                    flippedCards = [];
+                }, 600);
             } else {
                 setTimeout(() => {
                     card1.classList.remove("flipped");
                     card2.classList.remove("flipped");
-                    currentPlayer = (currentPlayer + 1) % numPlayers;
-                    resetTurn(false);
+                    currentPlayer = (currentPlayer + 1) % 4;
+                    updateUI();
+                    lockBoard = false;
+                    flippedCards = [];
                 }, 1000);
             }
         }
 
-        function resetTurn(isMatch) {
-            flippedCards = [];
-            lockBoard = false;
+        function updateUI() {
+            // スコア更新
+            for (let i = 0; i < 4; i++) {
+                const el = document.getElementById(`p${i}`);
+                el.innerText = `P${i + 1}: ${scores[i]}`;
+                el.classList.remove("current-player");
+                if (i === currentPlayer) el.classList.add("current-player");
+            }
             info.innerText = `プレイヤー ${currentPlayer + 1} の番です`;
-            scoreDisplay.innerText = scores.map((s, i) => `P${i+1}: ${s}`).join(" | ");
-            
-            if (document.querySelectorAll(".card:not(.matched)").length === 0) {
-                alert("ゲーム終了！スコア: " + scoreDisplay.innerText);
+        }
+
+        function checkGameEnd() {
+            const remaining = document.querySelectorAll(".card:not(.matched)").length;
+            if (remaining === 0) {
+                const winnerScore = Math.max(...scores);
+                const winnerIndex = scores.indexOf(winnerScore) + 1;
+                alert(`ゲーム終了！ プレイヤー ${winnerIndex} の勝利です！`);
             }
         }
 
